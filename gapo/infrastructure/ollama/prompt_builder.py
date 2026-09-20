@@ -16,10 +16,16 @@ class PromptBuilder:
         self.prompt_repo = prompt_repo
         self.champion_repo = champion_repo
 
-    def build_event_prompt(self, event_type: str, message: str, game_state: GameState) -> CoachPrompt:
+    def build_event_prompt(
+        self,
+        event_type: str,
+        message: str,
+        game_state: GameState,
+        priority: str = "",
+    ) -> CoachPrompt:
         base_prompt = self.prompt_repo.load_event_prompt()
         context = game_state.to_context_dict()
-        
+
         champion = context.get("player", {}).get("champion", "")
         enemy_champ = ""
         if context.get("enemies_visible"):
@@ -30,8 +36,13 @@ class PromptBuilder:
             if matchup:
                 context["matchup_advice"] = matchup.get("advice", "")
 
-        user_prompt = base_prompt.user_prompt.format(
-            event_message=f"Evento: {event_type}\nDetalhes: {message}",
+        user_prompt = _safe_format(
+            base_prompt.user_prompt,
+            fallback=f"Evento: {event_type}\nDetalhes: {message}\nContexto: {context}",
+            event_type=event_type,
+            priority=priority,
+            message=message,
+            event_message=message,
             game_state=context,
         )
 
@@ -61,7 +72,9 @@ class PromptBuilder:
             if powerspikes:
                 context["powerspikes"] = powerspikes[:3]
 
-        user_prompt = base_prompt.user_prompt.format(
+        user_prompt = _safe_format(
+            base_prompt.user_prompt,
+            fallback=f"Pergunta: {question}\nContexto: {context}",
             question=question,
             game_state=context,
         )
@@ -75,3 +88,19 @@ class PromptBuilder:
             max_tokens=base_prompt.max_tokens,
             temperature=base_prompt.temperature,
         )
+
+
+def _safe_format(template: str, fallback: str, **valores) -> str:
+    """Formata o template do YAML sem deixar um typo derrubar o coach.
+
+    Os prompts em data/prompts/ sao feitos para serem editados a mao; um
+    placeholder desconhecido levantaria KeyError e silenciaria o bot inteiro.
+    Aqui isso vira um aviso no log e o prompt cai no formato padrao.
+    """
+    if not template:
+        return fallback
+    try:
+        return template.format(**valores)
+    except (KeyError, IndexError, ValueError) as e:
+        logger.warning(f"Placeholder invalido no prompt ({e}) - usando formato padrao")
+        return fallback

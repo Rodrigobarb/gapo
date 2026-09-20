@@ -18,6 +18,11 @@ class CoachService:
         prompt_builder: PromptBuilder,
         cache_repo: CacheRepository,
     ):
+        if prompt_builder is None:
+            # Sem builder, todo process_event/answer_question morria em
+            # AttributeError dentro de um except - o bot conectava e ficava mudo.
+            raise ValueError("CoachService exige um PromptBuilder (recebeu None)")
+
         self.ollama = ollama_client
         self.prompt_builder = prompt_builder
         self.cache = cache_repo
@@ -43,6 +48,7 @@ class CoachService:
             event.event_type.value,
             event.message,
             game_state,
+            priority=event.priority.value,
         )
 
         response = await self._generate_with_cache(prompt)

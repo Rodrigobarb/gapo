@@ -10,10 +10,11 @@ logger = get_logger("message_listener")
 
 
 class GapoMessageListener:
-    def __init__(self, bot: commands.Bot, gapo_service, trigger: str = "Gapo"):
+    def __init__(self, bot: commands.Bot, gapo_service, trigger: str = "Gapo", on_answer=None):
         self.bot = bot
         self.gapo_service = gapo_service
         self.trigger = trigger.lower()
+        self.on_answer = on_answer
         self.pattern = re.compile(rf"^{re.escape(trigger)}\s+(.+)$", re.IGNORECASE)
         
         self.global_limiter = RateLimiter(max_calls=5, window_seconds=10)
@@ -53,16 +54,32 @@ class GapoMessageListener:
         logger.info(f"Gapo question from {message.author}: {question}")
 
         try:
-            await self.gapo_service.answer_question(
-                user_id=user_id,
-                username=str(message.author),
-                question=question,
-                channel_id=message.channel.id,
-                guild_id=message.guild.id
-            )
+            async with message.channel.typing():
+                response = await self.gapo_service.answer_question(
+                    user_id=user_id,
+                    username=str(message.author),
+                    question=question,
+                    channel_id=message.channel.id,
+                    guild_id=message.guild.id,
+                )
         except Exception as e:
-            logger.error(f"Error processing Gapo question: {e}")
-            await message.reply("❌ Erro ao processar pergunta. Tente novamente.", delete_after=5)
+            logger.exception(f"Error processing Gapo question: {e}")
+            await message.reply(f"❌ Erro ao processar pergunta: {e}", delete_after=15)
+            return True
+
+        if not response or not response.text:
+            logger.warning("Gapo respondeu vazio")
+            await message.reply("❌ Nao consegui gerar resposta. Veja os logs.", delete_after=15)
+            return True
+
+        # A resposta precisa sair em algum lugar: texto sempre, voz quando ha
+        # canal conectado (o callback e quem sabe disso).
+        await message.reply(response.text[:1900])  # limite de 2000 chars do Discord
+        if self.on_answer:
+            try:
+                await self.on_answer(response)
+            except Exception as e:
+                logger.exception(f"Falha ao falar a resposta: {e}")
 
         return True
 

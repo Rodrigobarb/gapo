@@ -28,6 +28,7 @@ from gapo.repositories.champion_repo import ChampionRepository
 from gapo.repositories.roi_repo import ROIRepository
 from gapo.repositories.cache_repo import CacheRepository
 from gapo.infrastructure.discord import DiscordBot, create_bot, setup_commands, GapoMessageListener, DiscordVoiceManager
+from gapo.infrastructure.ollama import PromptBuilder
 
 logger = get_logger("cli")
 
@@ -70,13 +71,14 @@ class CLIController:
 
         self.coach_service = CoachService(
             self.model_service.get_ollama_client(),
-            None,
+            PromptBuilder(prompt_repo, champion_repo),
             cache_repo,
         )
         self.coach_service.set_event_cooldown(self.settings.coach.event_cooldown_seconds)
 
         self.gapo_service = GapoService(self.coach_service)
         self.gapo_service.set_cooldown(self.settings.coach.gapo_cooldown_seconds)
+        self.gapo_service.set_game_state_provider(self.game_state_service.get_current_state)
 
         self.tts_service = TTSService(
             self.model_service.get_piper_engine(),
@@ -157,7 +159,14 @@ class CLIController:
 
         setup_commands(self.discord_bot, self)
 
-        listener = GapoMessageListener(self.discord_bot, self.gapo_service)
+        async def falar_resposta(response):
+            if self.tts_service:
+                # Prioridade acima do coach automatico: pergunta direta vem antes.
+                await self.tts_service.speak(response.clean_for_tts(), priority=20)
+
+        listener = GapoMessageListener(
+            self.discord_bot, self.gapo_service, on_answer=falar_resposta
+        )
         listener.register()
 
         if self.settings.discord.voice_channel_id:
