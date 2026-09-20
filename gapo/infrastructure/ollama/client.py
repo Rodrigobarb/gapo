@@ -17,9 +17,10 @@ class OllamaClient:
 
     async def ensure_model(self) -> bool:
         try:
-            models = await self.client.list()
-            model_names = [m["name"] for m in models.get("models", [])]
-            if self.model not in model_names:
+            listagem = await self.client.list()
+            nomes = _model_names(listagem)
+            alvo = self.model if ":" in self.model else f"{self.model}:latest"
+            if not {self.model, alvo} & set(nomes):
                 logger.info(f"Pulling model {self.model}...")
                 await self.client.pull(self.model)
             self._model_loaded = True
@@ -88,3 +89,23 @@ class OllamaClient:
             return True
         except Exception:
             return False
+
+
+def _model_names(listagem) -> list[str]:
+    """Nomes dos modelos, tolerando as duas formas do cliente Ollama.
+
+    Ate a 0.3 o list() devolvia dicts com a chave "name"; das 0.4 em diante sao
+    objetos ListResponse.Model com o atributo `model`.
+    """
+    modelos = getattr(listagem, "models", None)
+    if modelos is None and isinstance(listagem, dict):
+        modelos = listagem.get("models", [])
+    nomes = []
+    for m in modelos or []:
+        if isinstance(m, dict):
+            nome = m.get("name") or m.get("model") or ""
+        else:
+            nome = getattr(m, "model", "") or getattr(m, "name", "")
+        if nome:
+            nomes.append(nome)
+    return nomes

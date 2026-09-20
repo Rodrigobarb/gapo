@@ -53,6 +53,7 @@ logs/
 
 # Data (generated at runtime)
 data/cache/
+config/config.yaml
 *.db
 *.sqlite
 

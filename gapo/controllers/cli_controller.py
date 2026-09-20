@@ -1,8 +1,14 @@
+"""Runtime do bot: monta os services e toca o loop de captura/Discord.
+
+Os comandos da CLI vivem em gapo/cli.py; aqui so entra o que precisa do
+runtime completo carregado.
+"""
+
 import asyncio
-import sys
+
 import click
-from pathlib import Path
-from gapo.config.settings import get_settings, reload_settings
+
+from gapo.config.settings import get_settings
 from gapo.core.logging import setup_logging, get_logger
 from gapo.services.model_service import ModelService
 from gapo.services.capture_service import CaptureService
@@ -171,23 +177,13 @@ class CLIController:
             await self.discord_bot.close()
 
 
-async def run_init():
-    controller = CLIController()
-    if await controller.initialize():
-        await controller.model_service.download_models()
-        click.echo("✅ Gapo initialized successfully!")
-    else:
-        click.echo("❌ Initialization failed")
-        raise SystemExit(1)
-
-
 async def run_bot():
     controller = CLIController()
     if await controller.initialize():
         controller._running = True
         await controller.start_discord()
     else:
-        click.echo("❌ Initialization failed")
+        click.echo("❌ Falha na inicializacao - rode `gapo doctor` para ver o que falta")
         raise SystemExit(1)
 
 
@@ -197,55 +193,5 @@ async def run_capture():
         controller._running = True
         await controller.run_capture_only()
     else:
-        click.echo("❌ Initialization failed")
+        click.echo("❌ Falha na inicializacao - rode `gapo doctor` para ver o que falta")
         raise SystemExit(1)
-
-
-@click.group()
-def cli():
-    # A CLI usa emoji nas mensagens; no Windows o stdout cai em cp1252 quando a
-    # saida e redirecionada (gapo doctor > log.txt) e o encode explode.
-    for stream in (sys.stdout, sys.stderr):
-        reconfigure = getattr(stream, "reconfigure", None)
-        if reconfigure is not None:
-            reconfigure(encoding="utf-8", errors="replace")
-
-
-@cli.command()
-def init():
-    """Inicializa Gapo: baixa modelos e configura ambiente"""
-    asyncio.run(run_init())
-
-
-@cli.command()
-def run():
-    """Inicia o bot completo com Discord"""
-    asyncio.run(run_bot())
-
-
-@cli.command()
-def capture():
-    """Roda apenas captura e OCR (para testes)"""
-    asyncio.run(run_capture())
-
-
-@cli.command()
-@click.option("--width", default=1920, help="Largura da resolução")
-@click.option("--height", default=1080, help="Altura da resolução")
-def calibrate(width: int, height: int):
-    """Calibra ROIs para a resolução especificada"""
-    click.echo(f"Calibração para {width}x{height} - execute o script de calibração separado")
-    click.echo("python -m scripts.calibrate_roi")
-
-
-@cli.command()
-def doctor():
-    """Verifica saúde do sistema"""
-    click.echo("🔍 Verificando sistema...")
-    click.echo("✅ Python OK")
-    click.echo("✅ Dependências OK")
-    click.echo("ℹ️  Execute 'gapo init' para verificar modelos")
-
-
-if __name__ == "__main__":
-    cli()

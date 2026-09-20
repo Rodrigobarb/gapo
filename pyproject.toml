@@ -60,6 +60,10 @@ target-version = "py311"
 select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "SIM", "T20"]
 ignore = ["S101", "B008"]
 
+[tool.ruff.lint.per-file-ignores]
+# Entrada zero-dependencia: roda antes de qualquer pip install, so pode usar stdlib.
+"scripts/bootstrap.py" = ["T20"]
+
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"

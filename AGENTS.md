@@ -25,16 +25,20 @@ cd gapo
 python -m venv venv
 venv\Scripts\activate          # Windows
 # source venv/bin/activate     # Linux
-pip install -e .[dev]          # instala dependências + dev tools
 
-# Configure variáveis de ambiente
-cp .env.example .env
+python scripts/bootstrap.py    # pip install -e . + gapo init
 # Edite .env com DISCORD_TOKEN e DISCORD_APPLICATION_ID
-
-# Inicializa (baixa modelos ~5GB: LLM + TTS + YOLO)
-gapo init
-# ou: python -m scripts.init_gapo
+gapo doctor                    # confere o que ficou faltando
 ```
+
+`gapo init` faz tudo sozinho e é idempotente: diretórios, `.env`,
+`config/config.yaml`, `pip install -e .`, sobe o Ollama, baixa o LLM (~4.2GB),
+a voz Piper (~63MB) e exporta o YOLOv8n ONNX. Flags: `--skip-deps`,
+`--skip-ollama`, `--skip-piper`, `--skip-yolo`, `--install-ollama` (winget),
+`--dev`, `--no-check`.
+
+`gapo doctor` só verifica — nunca instala. Marca cada falha como "o init
+resolve" ou "precisa de você", e sai com código 1 se algo bloqueia o `gapo run`.
 
 ### Variáveis de ambiente (.env)
 | Variável | Obrigatória | Padrão |
@@ -52,11 +56,13 @@ gapo init
 
 | Ação | Comando |
 |------|---------|
-| Inicializar projeto (download modelos) | `gapo init` |
+| Bootstrap do zero (sem o comando `gapo`) | `python scripts/bootstrap.py` |
+| Inicializar projeto (deps + modelos) | `gapo init` |
 | Rodar bot completo (Discord + Voice) | `gapo run` |
 | Rodar apenas captura + OCR (teste) | `gapo capture` |
 | Calibrar ROIs para resolução | `gapo calibrate --width 1920 --height 1080` |
 | Diagnóstico do sistema | `gapo doctor` |
+| Diagnóstico em JSON (CI) | `gapo doctor --json` |
 | Baixar modelos manualmente | `python -m scripts.download_models` |
 | Calibração interativa ROIs | `python -m scripts.calibrate_roi --width 1920 --height 1080` |
 | Rodar testes | `pytest tests/ -v` |
@@ -80,17 +86,24 @@ gapo/
 ├── Dockerfile                  # Multi-stage build
 ├── .env.example                # Template variáveis ambiente
 ├── scripts/                    # Scripts standalone
-│   ├── init_gapo.py            # Setup completo (modelos + dirs + configs)
-│   ├── download_models.py      # Baixa LLM, TTS, exporta YOLO ONNX
+│   ├── bootstrap.py            # Entrada zero-dependência: pip install + gapo init
+│   ├── init_gapo.py            # Atalho para `gapo init`
+│   ├── download_models.py      # Só os modelos (LLM, TTS, YOLO)
 │   ├── calibrate_roi.py        # Calibração interativa ROIs (OpenCV)
-│   └── doctor.py               # Health check sistema
+│   └── doctor.py               # Atalho para `gapo doctor`
 ├── data/                       # Dados versionados (Git)
 │   ├── champions/              # matchups.json, builds.json, counters.json, powerspikes.json
 │   ├── prompts/                # event_coach_v1.yaml, gapo_coach_v1.yaml
 │   └── roi_presets/            # 1920x1080.yaml, 2560x1440.yaml, 3840x2160.yaml
 ├── gapo/
 │   ├── __main__.py             # Entry point: cli()
-│   ├── cli.py                  # Re-exporta CLI commands
+│   ├── cli.py                  # Click group: doctor, init, run, capture, calibrate
+│   ├── bootstrap/              # doctor + init (só stdlib/click/rich - ver §8)
+│   │   ├── requirements.py     # Fonte única: deps, modelos, arquivos exigidos
+│   │   ├── diagnostics.py      # CheckResult, DiagnosticsReport, StepResult
+│   │   ├── doctor.py           # DoctorService: 12 checks, nunca instala nada
+│   │   ├── installer.py        # SetupService: deps, Ollama, Piper, YOLO
+│   │   └── console.py          # Terminal (rich com fallback) + ProgressLine
 │   ├── config/
 │   │   └── settings.py         # Pydantic Settings (env + yaml), get_settings()
 │   ├── controllers/
@@ -301,6 +314,8 @@ Incluir:
 | `TTSService` | Piper roda via subprocess — bloqueia event loop se sync | Usar `asyncio.create_subprocess_exec` (já implementado) |
 | `DiscordVoiceManager` | Opus packets precisam 20ms frames @ 48kHz | `FRAME_SIZE = 960` hardcoded; não alterar sem testar audio |
 | `EventService` | Heurísticas baseadas em thresholds arbitrários | Ajustar cooldowns via `/coach config`; não hardcodear |
+| `gapo/bootstrap/` | É o código que conserta ambiente quebrado — um import pesado aqui derruba `gapo doctor` e `gapo init` justamente quando são necessários | Só stdlib + click + rich. **Nunca** importar `gapo.services`, `gapo.core`, `gapo.infrastructure` ou `gapo.config` no topo do módulo (settings entra via `try/except` em `resolve_model_names`) |
+| `gapo/cli.py` | Mesmo motivo: o entry point carrega antes de qualquer dependência existir | Imports do runtime ficam **dentro** de cada comando, nunca no topo |
 
 ### 🔒 Exige confirmação humana
 - Mudanças em `pyproject.toml` (versão, deps, entry points)
