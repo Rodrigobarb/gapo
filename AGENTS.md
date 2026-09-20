@@ -13,7 +13,8 @@ Pipeline de entrada: Discord Voice → UtteranceSink (corte por silêncio) → W
 ## 2. Setup
 
 ### Pré-requisitos
-- Python 3.11+
+- Python 3.11 exatamente (`requires-python = ">=3.11,<3.12"`) — paddleocr,
+  onnxruntime-gpu e faster-whisper nem sempre têm wheel para versões mais novas
 - GPU NVIDIA (GTX 1660 6GB VRAM mínimo)
 - Ollama instalado e rodando (`ollama serve`)
 - FFmpeg no PATH
@@ -23,9 +24,9 @@ Pipeline de entrada: Discord Voice → UtteranceSink (corte por silêncio) → W
 ```bash
 git clone <repo>
 cd gapo
-python -m venv venv
+py -3.11 -m venv venv
 venv\Scripts\activate          # Windows
-# source venv/bin/activate     # Linux
+# python3.11 -m venv venv && source venv/bin/activate   # Linux
 
 python scripts/bootstrap.py    # pip install -e . + gapo init
 # Edite .env com DISCORD_TOKEN e DISCORD_APPLICATION_ID

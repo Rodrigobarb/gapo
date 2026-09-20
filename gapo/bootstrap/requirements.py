@@ -15,6 +15,10 @@ from pathlib import Path
 
 PYTHON_MIN = (3, 11)
 
+# Serie fixada: paddleocr, onnxruntime-gpu e faster-whisper nem sempre tem
+# wheel para a versao mais nova do Python, e ai o pip tenta compilar do zero.
+PYTHON_TARGET = (3, 11)
+
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 OLLAMA_HOST = "http://localhost:11434"

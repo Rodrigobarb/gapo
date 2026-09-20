@@ -19,11 +19,36 @@ def _run(cmd: list[str]) -> int:
     return subprocess.call(cmd, cwd=str(ROOT))
 
 
+ALVO = (3, 11)
+
+
+def _checar_python() -> int:
+    """O projeto e fixado no 3.11: fora disso o pip tenta compilar do zero.
+
+    paddleocr, onnxruntime-gpu e faster-whisper nem sempre publicam wheel para
+    a versao mais nova, e a instalacao morre no meio em vez de falhar aqui.
+    """
+    v = sys.version_info
+    if (v.major, v.minor) == ALVO:
+        return 0
+
+    alvo = f"{ALVO[0]}.{ALVO[1]}"
+    print(f"Python {v.major}.{v.minor}.{v.micro} - o Gapo usa o {alvo}.\n")
+    print("Crie a venv apontando para o interpretador certo:")
+    if sys.platform == "win32":
+        print(f"  py -{alvo} -m venv venv")
+        print("  venv/Scripts/python.exe scripts/bootstrap.py")
+        print("\n(sem o 3.11 instalado: winget install Python.Python.3.11)")
+    else:
+        print(f"  python{alvo} -m venv venv")
+        print("  venv/bin/python scripts/bootstrap.py")
+    return 1
+
+
 def main() -> int:
-    if sys.version_info < (3, 11):
-        v = sys.version_info
-        print(f"Python {v.major}.{v.minor} e antigo demais - o Gapo precisa de 3.11+")
-        return 1
+    codigo = _checar_python()
+    if codigo != 0:
+        return codigo
 
     if sys.prefix == sys.base_prefix:
         print("Aviso: voce nao esta numa venv. Sugerido:")

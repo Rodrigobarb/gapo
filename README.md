@@ -1,6 +1,6 @@
 # Gapo - LoL Coach Discord Bot
 
-- Python 3.11+
+- Python 3.11 (a série é fixada: `requires-python = ">=3.11,<3.12"`)
 - GPU NVIDIA (GTX 1660 6GB VRAM mínimo)
 - Ollama instalado
 - Conta Discord Bot com token
@@ -9,7 +9,7 @@
 ```bash
 git clone <repo>
 cd gapo
-python -m venv venv
+py -3.11 -m venv venv
 venv\Scripts\activate  # Windows
 ```
 

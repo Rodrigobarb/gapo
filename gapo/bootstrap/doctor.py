@@ -26,6 +26,7 @@ from gapo.bootstrap.requirements import (
     PROJECT_ROOT,
     PY_PACKAGES,
     PYTHON_MIN,
+    PYTHON_TARGET,
     REQUIRED_DATA_FILES,
     YOLO_MODEL_FILE,
     is_installed,
@@ -94,14 +95,27 @@ class DoctorService:
     def check_python(self) -> CheckResult:
         v = sys.version_info
         atual = f"Python {v.major}.{v.minor}.{v.micro}"
-        if (v.major, v.minor) >= PYTHON_MIN:
+        alvo = ".".join(str(p) for p in PYTHON_TARGET)
+
+        if (v.major, v.minor) == PYTHON_TARGET:
             return CheckResult("Python", CheckStatus.OK, atual)
-        minimo = ".".join(str(p) for p in PYTHON_MIN)
+
+        if (v.major, v.minor) < PYTHON_MIN:
+            minimo = ".".join(str(p) for p in PYTHON_MIN)
+            return CheckResult(
+                "Python",
+                CheckStatus.FAIL,
+                f"{atual} - requer {minimo}",
+                hint=_dica_venv(alvo),
+            )
+
+        # Mais novo que o alvo: instala, mas paddleocr/onnxruntime/faster-whisper
+        # costumam nao ter wheel e o pip cai em compilacao.
         return CheckResult(
             "Python",
-            CheckStatus.FAIL,
-            f"{atual} - requer {minimo}+",
-            hint=f"instale Python {minimo}+ e recrie a venv",
+            CheckStatus.WARN,
+            f"{atual} - o projeto e fixado no {alvo}, wheels podem faltar",
+            hint=_dica_venv(alvo),
         )
 
     def check_platform(self) -> CheckResult:
@@ -396,6 +410,13 @@ def _model_present(wanted: str, available: list[str]) -> bool:
     """O Ollama lista `nome` como `nome:latest` quando nao ha tag explicita."""
     alvo = wanted if ":" in wanted else f"{wanted}:latest"
     return any(m in {wanted, alvo} for m in available)
+
+
+def _dica_venv(alvo: str) -> str:
+    """Como recriar a venv na versao certa, no jeito de cada sistema."""
+    if sys.platform == "win32":
+        return f"py -{alvo} -m venv venv && venv/Scripts/python.exe scripts/bootstrap.py"
+    return f"python{alvo} -m venv venv && venv/bin/python scripts/bootstrap.py"
 
 
 def _max_vram_mib(saida_nvidia_smi: str) -> int:

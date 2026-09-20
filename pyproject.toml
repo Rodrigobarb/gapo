@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "LoL Coach Discord Bot with Real-time OCR + Local LLM + TTS"
 readme = "README.md"
 license = {text = "MIT"}
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.12"
 dependencies = [
     "dxcam>=0.1.0",
     "mss>=9.0.0",
