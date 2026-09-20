@@ -84,3 +84,35 @@ def chunk_audio(audio: np.ndarray, chunk_samples: int) -> list[np.ndarray]:
             chunk = np.pad(chunk, (0, chunk_samples - len(chunk)))
         chunks.append(chunk)
     return chunks
+
+
+DISCORD_SAMPLE_RATE = 48000
+WHISPER_SAMPLE_RATE = 16000
+
+
+def discord_pcm_to_whisper(pcm: bytes) -> np.ndarray:
+    """Converte o PCM da call no formato que o Whisper espera.
+
+    Entra 48kHz estereo s16le (o que o Discord entrega), sai float32 mono
+    16kHz normalizado. A decimacao usa media de 3 amostras: e um passa-baixa
+    grosseiro, mas suficiente para fala e evita mais uma dependencia de
+    resampler so para isso.
+    """
+    amostras = np.frombuffer(pcm, dtype=np.int16)
+    if amostras.size == 0:
+        return np.zeros(0, dtype=np.float32)
+
+    if amostras.size % 2 == 0:
+        mono = amostras.reshape(-1, 2).mean(axis=1)
+    else:
+        mono = amostras.astype(np.float32)
+
+    fator = DISCORD_SAMPLE_RATE // WHISPER_SAMPLE_RATE
+    sobra = mono.size % fator
+    if sobra:
+        mono = mono[:-sobra]
+    if mono.size == 0:
+        return np.zeros(0, dtype=np.float32)
+
+    reduzido = mono.reshape(-1, fator).mean(axis=1)
+    return (reduzido / 32768.0).astype(np.float32)

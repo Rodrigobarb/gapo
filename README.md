@@ -34,9 +34,10 @@ O `init` é idempotente — o que já estiver no lugar é pulado — e faz:
 | LLM | sobe o Ollama e baixa **Qwen2.5-7B-Instruct-Q4_K_M** (~4.2GB) |
 | TTS | voz Piper **pt_BR-faber-medium** (~63MB) |
 | Opus | `opus.dll` para a voz no Discord (reaproveita a que vem no discord.py) |
+| Escuta | modelo **faster-whisper small** (~500MB) para entender a fala na call |
 | Visão | exporta **YOLOv8n ONNX** (~3MB, opcional) |
 
-Opções: `--skip-deps`, `--skip-ollama`, `--skip-piper`, `--skip-yolo`,
+Opções: `--skip-deps`, `--skip-ollama`, `--skip-piper`, `--skip-yolo`, `--skip-whisper`,
 `--install-system` (instala Ollama e FFmpeg via winget no Windows), `--dev`,
 `--no-check`.
 
@@ -61,3 +62,14 @@ DISCORD_APPLICATION_ID=seu_app_id
 ```bash
 gapo run
 ```
+
+Entre numa call e rode `/coach_start`. A partir daí você fala com ele:
+
+> **"Gapo, qual a melhor jogada agora?"**
+
+Ele escuta a call, transcreve localmente (faster-whisper), responde por voz e
+também aceita a mesma pergunta digitada no chat de texto. A palavra-chave é
+comparada por semelhança — "capo", "gapô" e afins também funcionam, porque o
+reconhecimento erra nome próprio com frequência.
+
+Para desligar a escuta e usar só o chat: `GAPO_STT_ENABLED=false` no `.env`.

@@ -5,6 +5,7 @@ from typing import Optional
 import discord
 
 from gapo.core.logging import get_logger
+from gapo.infrastructure.discord.voice_sink import voice_client_cls
 from gapo.models.audio import AudioChunk, AudioFormat
 
 logger = get_logger("discord_voice")
@@ -22,15 +23,44 @@ class DiscordVoiceManager:
             if self._voice_client and self._voice_client.is_connected():
                 await self._voice_client.move_to(channel)
             else:
-                self._voice_client = await channel.connect()
+                # VoiceRecvClient e o que permite RECEBER audio; sem a extensao
+                # instalada cai no client padrao, que so envia.
+                cls = voice_client_cls()
+                self._voice_client = (
+                    await channel.connect(cls=cls) if cls else await channel.connect()
+                )
             logger.info(f"Voice connected to {channel.name}")
             return True
         except Exception as e:
             logger.error(f"Voice connect failed: {e}")
             return False
 
+    def start_listening(self, sink) -> bool:
+        """Liga a recepcao de audio. Precisa do VoiceRecvClient na conexao."""
+        if sink is None or not self.is_connected():
+            return False
+        listen = getattr(self._voice_client, "listen", None)
+        if listen is None:
+            logger.warning("VoiceClient sem suporte a recepcao - escuta desligada")
+            return False
+        try:
+            listen(sink)
+            return True
+        except Exception as e:
+            logger.error(f"Falha ao iniciar a escuta: {e}")
+            return False
+
+    def stop_listening(self) -> None:
+        parar = getattr(self._voice_client, "stop_listening", None)
+        if parar is not None:
+            try:
+                parar()
+            except Exception as e:
+                logger.error(f"Falha ao parar a escuta: {e}")
+
     async def disconnect(self) -> None:
         if self._voice_client and self._voice_client.is_connected():
+            self.stop_listening()
             await self._voice_client.disconnect()
             self._voice_client = None
             logger.info("Voice disconnected")

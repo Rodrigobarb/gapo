@@ -54,6 +54,7 @@ def doctor(as_json: bool) -> None:
 @click.option("--skip-ollama", is_flag=True, help="Nao subir o Ollama nem baixar o LLM")
 @click.option("--skip-piper", is_flag=True, help="Nao baixar a voz do Piper")
 @click.option("--skip-yolo", is_flag=True, help="Nao exportar o YOLOv8n para ONNX")
+@click.option("--skip-whisper", is_flag=True, help="Nao baixar o modelo de transcricao")
 @click.option(
     "--install-system",
     is_flag=True,
@@ -66,6 +67,7 @@ def init(
     skip_ollama: bool,
     skip_piper: bool,
     skip_yolo: bool,
+    skip_whisper: bool,
     install_system: bool,
     dev: bool,
     no_check: bool,
@@ -87,12 +89,14 @@ def init(
         llm_model=modelos["llm_model"],
         tts_voice=modelos["tts_voice"],
         yolo_model=modelos["yolo_model"],
+        stt_model=modelos["stt_model"],
     )
     setup_report = setup.run_all(
         skip_deps=skip_deps,
         skip_ollama=skip_ollama,
         skip_piper=skip_piper,
         skip_yolo=skip_yolo,
+        skip_whisper=skip_whisper,
         install_system=install_system,
         dev=dev,
     )

@@ -28,7 +28,10 @@ from gapo.bootstrap.requirements import (
     PYTHON_MIN,
     REQUIRED_DATA_FILES,
     YOLO_MODEL_FILE,
+    is_installed,
     piper_voice_paths,
+    whisper_cached,
+    whisper_repo,
 )
 
 INIT_HINT = "rode: gapo init"
@@ -52,6 +55,7 @@ class DoctorService:
         self.llm_model = llm_model or defaults["llm_model"]
         self.tts_voice = tts_voice or defaults["tts_voice"]
         self.yolo_model = yolo_model or defaults["yolo_model"]
+        self.stt_model = defaults["stt_model"]
         self.ollama_host = ollama_host
         self.cwd = cwd or Path.cwd()
 
@@ -71,6 +75,7 @@ class DoctorService:
             self.check_yolo_model,
             self.check_ffmpeg,
             self.check_opus,
+            self.check_whisper,
         ):
             try:
                 report.add(check())
@@ -143,7 +148,7 @@ class DoctorService:
         faltando: list[str] = []
         opcionais: list[str] = []
         for pkg in PY_PACKAGES:
-            if not pkg.applies() or _module_available(pkg.module):
+            if not pkg.applies() or is_installed(pkg):
                 continue
             (opcionais if pkg.optional else faltando).append(pkg.dist)
 
@@ -295,6 +300,28 @@ class DoctorService:
             fixable_by_init=True,
         )
 
+    def check_whisper(self) -> CheckResult:
+        """Modelo de transcricao: sem ele o bot fala, mas nao escuta."""
+        if not _module_available("faster_whisper"):
+            return CheckResult(
+                "Whisper (escuta)",
+                CheckStatus.WARN,
+                "faster-whisper nao instalado - o bot nao escuta a call",
+                hint=INIT_HINT,
+                fixable_by_init=True,
+            )
+        if whisper_cached(self.stt_model):
+            return CheckResult(
+                "Whisper (escuta)", CheckStatus.OK, f"{whisper_repo(self.stt_model)} em cache"
+            )
+        return CheckResult(
+            "Whisper (escuta)",
+            CheckStatus.WARN,
+            f"{whisper_repo(self.stt_model)} ainda nao baixado",
+            hint=INIT_HINT,
+            fixable_by_init=True,
+        )
+
     def check_ffmpeg(self) -> CheckResult:
         """O Piper entrega WAV 22kHz mono; quem reamostra para o Discord e o ffmpeg."""
         binario = shutil.which("ffmpeg")
@@ -425,10 +452,12 @@ def resolve_model_names() -> dict[str, str]:
             "llm_model": settings.model.llm_name,
             "tts_voice": settings.model.tts_model,
             "yolo_model": settings.model.yolo_model,
+            "stt_model": settings.stt.model,
         }
     except Exception:
         return {
             "llm_model": "qwen2.5:7b-instruct-q4_K_M",
             "tts_voice": "pt_BR-faber-medium",
             "yolo_model": YOLO_MODEL_FILE,
+            "stt_model": "small",
         }

@@ -27,8 +27,11 @@ from gapo.bootstrap.requirements import (
     PROJECT_ROOT,
     PY_PACKAGES,
     RUNTIME_DIRS,
+    is_installed,
     piper_voice_paths,
     piper_voice_urls,
+    whisper_cached,
+    whisper_repo,
 )
 
 ENV_TEMPLATE = """# Discord Bot Configuration
@@ -103,6 +106,7 @@ class SetupService:
         llm_model: str = "qwen2.5:7b-instruct-q4_K_M",
         tts_voice: str = "pt_BR-faber-medium",
         yolo_model: str = "yolov8n.onnx",
+        stt_model: str = "small",
         ollama_host: str = OLLAMA_HOST,
         cwd: Path | None = None,
     ) -> None:
@@ -110,6 +114,7 @@ class SetupService:
         self.llm_model = llm_model
         self.tts_voice = tts_voice
         self.yolo_model = yolo_model
+        self.stt_model = stt_model
         self.ollama_host = ollama_host
         self.cwd = cwd or Path.cwd()
 
@@ -166,9 +171,7 @@ class SetupService:
             return self._fail("Dependencias Python", f"pip falhou (codigo {code}): {tail}{extra}")
 
         ainda_faltando = [
-            p.dist
-            for p in PY_PACKAGES
-            if p.applies() and not p.optional and not _importable(p.module)
+            p.dist for p in PY_PACKAGES if p.applies() and not p.optional and not is_installed(p)
         ]
         if ainda_faltando:
             return self._warn(
@@ -180,7 +183,7 @@ class SetupService:
     @staticmethod
     def _missing_packages(dev: bool) -> list[str]:
         """Distribuicoes ausentes, opcionais e dev incluidos quando pedido."""
-        faltando = [p.dist for p in PY_PACKAGES if p.applies() and not _importable(p.module)]
+        faltando = [p.dist for p in PY_PACKAGES if p.applies() and not is_installed(p)]
         if dev:
             faltando += [
                 dist
@@ -267,6 +270,33 @@ class SetupService:
                 return self._fail("Voz Piper (TTS)", erro)
         return self._ok("Voz Piper (TTS)", f"{self.tts_voice} em {onnx.parent}")
 
+    def download_whisper_model(self) -> StepResult:
+        """Baixa o modelo de transcricao (escuta na call).
+
+        O faster-whisper baixaria sozinho no primeiro uso, mas ai o download
+        aconteceria com voce ja na call esperando resposta.
+        """
+        if whisper_cached(self.stt_model):
+            return self._ok("Whisper (escuta)", f"{whisper_repo(self.stt_model)} ja em cache")
+
+        if not _importable("faster_whisper"):
+            return self._warn(
+                "Whisper (escuta)",
+                "faster-whisper nao instalado - rode o init sem --skip-deps",
+            )
+
+        self.term.print(f"   baixando {whisper_repo(self.stt_model)}...", style="dim")
+        script = (
+            "from faster_whisper import WhisperModel; "
+            f"WhisperModel({self.stt_model!r}, device='cpu', compute_type='int8')"
+        )
+        code, tail = self._stream(
+            [sys.executable, "-c", script], cwd=self.cwd, echo="tudo", timeout=1800
+        )
+        if code != 0 or not whisper_cached(self.stt_model):
+            return self._warn("Whisper (escuta)", f"download falhou (codigo {code}): {tail}")
+        return self._ok("Whisper (escuta)", f"{whisper_repo(self.stt_model)} pronto")
+
     def ensure_ffmpeg(self, install: bool = False) -> StepResult:
         """Sem ffmpeg o TTS sintetiza mas nao sai som nenhum no Discord."""
         if shutil.which("ffmpeg"):
@@ -327,6 +357,7 @@ class SetupService:
         skip_ollama: bool = False,
         skip_piper: bool = False,
         skip_yolo: bool = False,
+        skip_whisper: bool = False,
         install_system: bool = False,
         dev: bool = False,
     ) -> SetupReport:
@@ -358,6 +389,9 @@ class SetupService:
         report.add(self._skip("Voz Piper (TTS)") if skip_piper else self.download_piper_voice())
         report.add(self.ensure_ffmpeg(install=install_system))
         report.add(self.ensure_opus_support())
+        report.add(
+            self._skip("Whisper (escuta)") if skip_whisper else self.download_whisper_model()
+        )
         report.add(self._skip("Modelo YOLO") if skip_yolo else self.export_yolo_model())
 
         return report

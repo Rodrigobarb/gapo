@@ -28,7 +28,10 @@ from gapo.repositories.champion_repo import ChampionRepository
 from gapo.repositories.roi_repo import ROIRepository
 from gapo.repositories.cache_repo import CacheRepository
 from gapo.infrastructure.discord import DiscordBot, create_bot, setup_commands, GapoMessageListener, DiscordVoiceManager
+from gapo.infrastructure.discord.voice_sink import create_sink
 from gapo.infrastructure.ollama import PromptBuilder
+from gapo.infrastructure.stt import WhisperEngine
+from gapo.services.voice_input_service import VoiceInputService
 
 logger = get_logger("cli")
 
@@ -47,6 +50,8 @@ class CLIController:
         self.knowledge_service = None
         self.discord_bot = None
         self.voice_manager = None
+        self.stt_engine = None
+        self.voice_input_service = None
         self._running = False
         self._event_times: deque[float] = deque()
 
@@ -88,9 +93,51 @@ class CLIController:
 
         self.knowledge_service = KnowledgeService(champion_repo)
 
+        self._setup_voice_input()
+
         self.capture_service.set_frame_callback(self._on_frame)
 
         return True
+
+    def _setup_voice_input(self) -> None:
+        """Monta a escuta por voz, se ligada e com faster-whisper disponivel."""
+        if not self.settings.stt.enabled:
+            logger.info("Escuta por voz desligada por configuracao")
+            return
+
+        engine = WhisperEngine(
+            model_size=self.settings.stt.model,
+            device=self.settings.stt.device,
+            compute_type=self.settings.stt.compute_type,
+            language=self.settings.stt.language,
+        )
+        if not engine.is_available():
+            logger.warning("faster-whisper ausente - escuta por voz desligada")
+            return
+
+        self.stt_engine = engine
+        self.voice_input_service = VoiceInputService(
+            engine,
+            on_question=self._responder_por_voz,
+            trigger=self.settings.discord.command_prefix,
+        )
+
+    async def _responder_por_voz(self, user_id: int, username: str, question: str) -> None:
+        """Pergunta feita na call: a resposta sai falada, nao tem chat para responder."""
+        response = await self.gapo_service.answer_question(
+            user_id=user_id,
+            username=username,
+            question=question,
+            channel_id=0,
+            guild_id=0,
+        )
+        if not response or not response.text:
+            logger.warning(f"Sem resposta para a pergunta por voz de {username}")
+            return
+
+        logger.info(f"Resposta por voz para {username}: {response.text[:100]}")
+        if self.tts_service:
+            await self.tts_service.speak(response.clean_for_tts(), priority=20)
 
     async def _on_frame(self, frame) -> None:
         if self.ocr_service:
@@ -208,12 +255,31 @@ class CLIController:
             await self.voice_manager.disconnect()
             return False
 
+        await self._start_listening()
+
         self._running = True
         return True
+
+    async def _start_listening(self) -> None:
+        """Liga a escuta por voz. Falhar aqui nao derruba o coaching."""
+        if not self.settings.stt.enabled or not self.voice_input_service:
+            return
+
+        sink = create_sink(
+            silence_seconds=self.settings.stt.silence_seconds,
+            max_seconds=self.settings.stt.max_utterance_seconds,
+        )
+        if sink is None or not self.voice_manager.start_listening(sink):
+            logger.warning("Escuta por voz indisponivel - use o chat de texto")
+            return
+
+        await self.voice_input_service.start(sink)
 
     async def stop_coaching(self) -> None:
         """Para a captura e sai do canal de voz. Alvo do /coach_stop."""
         self._running = False
+        if self.voice_input_service:
+            await self.voice_input_service.stop()
         await self.capture_service.stop()
         if self.voice_manager:
             await self.voice_manager.disconnect()

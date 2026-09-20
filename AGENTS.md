@@ -5,7 +5,8 @@
 **Gapo** — LoL Coach Discord Bot com OCR tempo real + LLM local + TTS PT-BR.
 Stack: Python 3.11+, dxcam/mss (captura), YOLOv8n ONNX + PaddleOCR (OCR), Ollama (Qwen2.5-7B-Q4), Piper-TTS, discord.py.
 Arquitetura: Clean Architecture (Controller/Service/Model/Repository/Infrastructure).
-Pipeline: Capture (3 FPS) → OCR (CPU) → GameState → Event Detection → Coach (LLM) → TTS (CPU) → Discord Voice.
+Pipeline de saída: Capture (3 FPS) → OCR (CPU) → GameState → Event Detection → Coach (LLM) → TTS (CPU) → Discord Voice.
+Pipeline de entrada: Discord Voice → UtteranceSink (corte por silêncio) → Whisper (CPU) → palavra-chave → Coach (LLM) → TTS.
 
 ---
 
@@ -33,9 +34,10 @@ gapo doctor                    # confere o que ficou faltando
 
 `gapo init` faz tudo sozinho e é idempotente: diretórios, `.env`,
 `config/config.yaml`, `pip install -e .`, sobe o Ollama, baixa o LLM (~4.2GB),
-a voz Piper (~63MB), resolve o `opus.dll` e exporta o YOLOv8n ONNX. Flags:
-`--skip-deps`, `--skip-ollama`, `--skip-piper`, `--skip-yolo`, `--dev`,
-`--no-check` e `--install-system` (instala Ollama e FFmpeg via winget).
+a voz Piper (~63MB), o Whisper `small` (~500MB), resolve o `opus.dll` e
+exporta o YOLOv8n ONNX. Flags: `--skip-deps`, `--skip-ollama`, `--skip-piper`,
+`--skip-yolo`, `--skip-whisper`, `--dev`, `--no-check` e `--install-system`
+(instala Ollama e FFmpeg via winget).
 
 `gapo doctor` só verifica — nunca instala. Marca cada falha como "o init
 resolve" ou "precisa de você", e sai com código 1 se algo bloqueia o `gapo run`.
@@ -51,6 +53,10 @@ resolve" ou "precisa de você", e sai com código 1 se algo bloqueia o `gapo run
 | `GAPO_MODEL_TTS_MODEL` | Não | `pt_BR-faber-medium` |
 | `GAPO_CAPTURE_FPS` | Não | `3` |
 | `GAPO_LOG_LEVEL` | Não | `INFO` |
+| `GAPO_STT_ENABLED` | Não | `true` (escuta por voz) |
+| `GAPO_STT_MODEL` | Não | `small` (tiny/base/small/medium) |
+| `GAPO_STT_DEVICE` | Não | `cpu` — a GPU já carrega o LLM |
+| `GAPO_STT_SILENCE_SECONDS` | Não | `0.8` (silêncio que fecha a fala) |
 
 ---
 
@@ -103,8 +109,8 @@ gapo/
 │   ├── bootstrap/              # doctor + init (só stdlib/click/rich - ver §8)
 │   │   ├── requirements.py     # Fonte única: deps, modelos, arquivos exigidos
 │   │   ├── diagnostics.py      # CheckResult, DiagnosticsReport, StepResult
-│   │   ├── doctor.py           # DoctorService: 12 checks, nunca instala nada
-│   │   ├── installer.py        # SetupService: deps, Ollama, Piper, Opus, YOLO
+│   │   ├── doctor.py           # DoctorService: 14 checks, nunca instala nada
+│   │   ├── installer.py        # SetupService: deps, Ollama, Piper, Opus, Whisper, YOLO
 │   │   ├── opus.py             # Acha a libopus (reaproveita a DLL do discord.py)
 │   │   └── console.py          # Terminal (rich com fallback) + ProgressLine
 │   ├── config/
@@ -121,7 +127,7 @@ gapo/
 │   │   ├── events.py           # GameEvent, EventType, EventPriority, Rules
 │   │   ├── coach.py            # CoachPrompt, CoachResponse, Prompt Builders
 │   │   ├── ocr.py              # UIRoi, ParsedHUD, ParsedMinimap, ROI Presets
-│   │   ├── audio.py            # VoiceConfig, TTSRequest, AudioChunk, OpusPacket
+│   │   ├── audio.py            # VoiceConfig, TTSRequest, AudioChunk, Utterance
 │   │   └── config.py           # ROIConfig, ModelConfig, AppConfig
 │   ├── repositories/           # Data access (Repository Pattern)
 │   │   ├── prompt_repo.py      # Carrega prompts YAML (versionados)
@@ -137,11 +143,13 @@ gapo/
 │   │   ├── coach_service.py    # Event-driven + Gapo Q&A (com cache)
 │   │   ├── gapo_service.py     # Wrapper Q&A com rate limit por user
 │   │   ├── tts_service.py      # Piper streaming + PriorityQueue (prioridade Gapo)
-│   │   └── knowledge_service.py # RAG leve: enriquece prompt com champion data
+│   │   ├── knowledge_service.py # RAG leve: enriquece prompt com champion data
+│   │   └── voice_input_service.py # Fala → Whisper → palavra-chave → Gapo
 │   ├── infrastructure/         # External Adapters
-│   │   ├── discord/            # Bot, VoiceManager, Commands, Gapo Listener
+│   │   ├── discord/            # Bot, VoiceManager, Commands, Listener, UtteranceSink
 │   │   ├── ollama/             # AsyncClient + PromptBuilder (few-shot + RAG)
 │   │   ├── piper/              # Engine (subprocess) + VoiceManager
+│   │   ├── stt/                # WhisperEngine (faster-whisper, CPU int8)
 │   │   ├── capture/            # DXCamCapture + MSSCapture (fallback)
 │   │   └── ocr/                # YOLODetector (ONNX), PaddleEngine, Preprocessor, Parser
 │   └── utils/

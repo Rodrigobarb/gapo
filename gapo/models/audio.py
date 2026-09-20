@@ -55,3 +55,12 @@ class OpusPacket:
     data: bytes
     timestamp: int
     sequence: int
+
+@dataclass
+class Utterance:
+    """Um trecho de fala de um usuario na call, ja fechado por silencio."""
+
+    user_id: int
+    username: str
+    pcm: bytes  # 48kHz estereo s16le, como o Discord entrega
+    duration_seconds: float

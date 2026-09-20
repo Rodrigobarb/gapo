@@ -60,6 +60,20 @@ class DiscordConfig(BaseSettings):
     model_config = _settings_config("GAPO_DISCORD_")
 
 
+class STTConfig(BaseSettings):
+    """Escuta por voz. Default na CPU: a GPU ja carrega o LLM."""
+
+    enabled: bool = True
+    model: str = "small"
+    device: str = "cpu"
+    compute_type: str = "int8"
+    language: str = "pt"
+    silence_seconds: float = 0.8
+    max_utterance_seconds: float = 15.0
+
+    model_config = _settings_config("GAPO_STT_")
+
+
 class CoachConfig(BaseSettings):
     event_cooldown_seconds: float = 5.0
     gapo_cooldown_seconds: float = 10.0
@@ -77,6 +91,7 @@ class AppConfig(BaseSettings):
     ocr: OCRConfig = Field(default_factory=OCRConfig)
     discord: DiscordConfig = Field(default_factory=DiscordConfig)
     coach: CoachConfig = Field(default_factory=CoachConfig)
+    stt: STTConfig = Field(default_factory=STTConfig)
     log_level: str = "INFO"
     data_dir: Path = Path("data")
     config_dir: Path = Path("config")

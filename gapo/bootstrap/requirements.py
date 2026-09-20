@@ -7,6 +7,8 @@ ambiente ainda quebrado, que e exatamente quando os dois comandos rodam.
 
 from __future__ import annotations
 
+import importlib.metadata
+import importlib.util
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -19,6 +21,9 @@ OLLAMA_HOST = "http://localhost:11434"
 PIPER_VOICES_BASE = "https://huggingface.co/rhasspy/piper-voices/resolve/main"
 PIPER_MODEL_DIR = Path.home() / ".local" / "share" / "piper"
 YOLO_MODEL_FILE = "yolov8n.onnx"
+
+# faster-whisper baixa do HuggingFace e guarda no cache padrao do hub.
+WHISPER_REPO_TEMPLATE = "Systran/faster-whisper-{size}"
 
 RUNTIME_DIRS = (
     "logs",
@@ -73,6 +78,8 @@ PY_PACKAGES = (
     PyPackage("onnxruntime", "onnxruntime-gpu", "inferencia do YOLO"),
     PyPackage("ollama", "ollama", "cliente do LLM local"),
     PyPackage("discord", "discord.py", "bot do Discord"),
+    PyPackage("discord.ext.voice_recv", "discord-ext-voice-recv", "receber audio da call"),
+    PyPackage("faster_whisper", "faster-whisper", "transcricao da fala (STT)"),
     PyPackage("nacl", "PyNaCl", "voz no Discord"),
     PyPackage("av", "av", "audio/video"),
     PyPackage("prometheus_client", "prometheus-client", "metricas"),
@@ -80,6 +87,25 @@ PY_PACKAGES = (
     PyPackage("ultralytics", "ultralytics", "export do YOLOv8n para ONNX", optional=True),
     PyPackage("opuslib", "opuslib", "encoder Opus (exige lib nativa)", optional=True),
 )
+
+
+def is_installed(pkg: PyPackage) -> bool:
+    """Se o pacote esta instalado, sem importar nada pesado.
+
+    Submodulo (nome com ponto) e checado pelos metadados da distribuicao:
+    `find_spec("discord.ext.voice_recv")` importaria o `discord` inteiro, e o
+    doctor tem que continuar leve.
+    """
+    if "." in pkg.module:
+        try:
+            importlib.metadata.distribution(pkg.dist)
+            return True
+        except importlib.metadata.PackageNotFoundError:
+            return False
+    try:
+        return importlib.util.find_spec(pkg.module) is not None
+    except (ImportError, ValueError):
+        return False
 
 
 def piper_voice_urls(voice: str) -> tuple[str, str]:
@@ -103,3 +129,31 @@ def piper_voice_paths(voice: str, model_dir: Path | None = None) -> tuple[Path, 
     """Caminhos locais esperados para o .onnx e o .onnx.json da voz."""
     directory = model_dir or PIPER_MODEL_DIR
     return directory / f"{voice}.onnx", directory / f"{voice}.onnx.json"
+
+
+def whisper_repo(model_size: str) -> str:
+    return WHISPER_REPO_TEMPLATE.format(size=model_size)
+
+
+def whisper_cached(model_size: str) -> bool:
+    """Se o modelo do Whisper ja esta no cache do HuggingFace.
+
+    Le a constante do proprio hub quando ele esta instalado; senao cai no
+    caminho padrao, para o doctor nao depender do pacote.
+    """
+    import os
+
+    try:
+        from huggingface_hub.constants import HF_HUB_CACHE
+
+        cache = Path(HF_HUB_CACHE)
+    except Exception:
+        cache = Path(os.environ.get("HF_HOME", Path.home() / ".cache" / "huggingface")) / "hub"
+
+    pasta = cache / ("models--" + whisper_repo(model_size).replace("/", "--"))
+    if not pasta.exists():
+        return False
+    # Uma pasta so com refs/ e um download interrompido.
+    return any((pasta / "snapshots").glob("*/*.bin")) or any(
+        (pasta / "snapshots").glob("*/*.safetensors")
+    )
