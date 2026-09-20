@@ -5,8 +5,12 @@ runtime completo carregado.
 """
 
 import asyncio
+import subprocess
+import time
+from collections import deque
 
 import click
+import discord
 
 from gapo.config.settings import get_settings
 from gapo.core.logging import setup_logging, get_logger
@@ -43,6 +47,7 @@ class CLIController:
         self.discord_bot = None
         self.voice_manager = None
         self._running = False
+        self._event_times: deque[float] = deque()
 
     async def initialize(self) -> bool:
         setup_logging()
@@ -124,6 +129,7 @@ class CLIController:
             if self.settings.coach.enable_event_coach:
                 events = self.event_service.check_events(game_state)
                 for event in events:
+                    self._event_times.append(time.monotonic())
                     response = await self.coach_service.process_event(event, game_state)
                     if response and self.tts_service:
                         await self.tts_service.speak(response.clean_for_tts(), priority=10)
@@ -136,20 +142,26 @@ class CLIController:
         self.discord_bot = await create_bot(
             self.settings.discord.token,
             self.settings.discord.application_id or 0,
+            guild_id=self.settings.discord.guild_id,
         )
 
         self.voice_manager = DiscordVoiceManager(self.discord_bot)
 
-        def tts_playback(chunk):
+        # O TTSService faz `await self._play_chunk(chunk)`, entao o callback
+        # precisa ser awaitable - um def comum aqui explodia em TypeError.
+        async def tts_playback(chunk):
             if self.voice_manager and self.voice_manager.is_connected():
-                asyncio.create_task(self.voice_manager.play_audio(chunk))
+                await self.voice_manager.play_audio(chunk)
 
         self.tts_service.set_playback_callback(tts_playback)
 
-        setup_commands(self.discord_bot, self.coach_service, self.capture_service, None)
+        setup_commands(self.discord_bot, self)
 
         listener = GapoMessageListener(self.discord_bot, self.gapo_service)
         listener.register()
+
+        if self.settings.discord.voice_channel_id:
+            asyncio.create_task(self._autojoin_voice())
 
         try:
             await self.discord_bot.start(self.settings.discord.token)
@@ -158,6 +170,71 @@ class CLIController:
             return False
 
         return True
+
+    async def _autojoin_voice(self) -> None:
+        """Entra sozinho no canal fixado em DISCORD_VOICE_CHANNEL_ID, se houver."""
+        await self.discord_bot.wait_until_ready()
+        channel_id = self.settings.discord.voice_channel_id
+        if await self.start_coaching(channel_id):
+            logger.info(f"Auto-join no canal de voz {channel_id}")
+        else:
+            logger.warning(f"Auto-join falhou no canal {channel_id} - use /coach_start")
+
+    async def start_coaching(self, voice_channel_id: int) -> bool:
+        """Entra no canal de voz e liga a captura. Alvo do /coach_start."""
+        if not self.voice_manager or not self.discord_bot:
+            logger.error("Bot do Discord ainda nao inicializado")
+            return False
+
+        channel = self.discord_bot.get_channel(voice_channel_id)
+        if not isinstance(channel, discord.VoiceChannel):
+            logger.error(f"Canal {voice_channel_id} nao existe ou nao e canal de voz")
+            return False
+
+        if not await self.voice_manager.connect(channel):
+            return False
+
+        if not await self.capture_service.start():
+            logger.error("Captura falhou - saindo do canal de voz")
+            await self.voice_manager.disconnect()
+            return False
+
+        self._running = True
+        return True
+
+    async def stop_coaching(self) -> None:
+        """Para a captura e sai do canal de voz. Alvo do /coach_stop."""
+        self._running = False
+        await self.capture_service.stop()
+        if self.voice_manager:
+            await self.voice_manager.disconnect()
+
+    async def get_status(self) -> dict:
+        """Snapshot para o /coach_status."""
+        capture = self.capture_service.get_status()
+        health = await self.model_service.health_check()
+        return {
+            "capturing": capture["capturing"],
+            "fps": capture["fps"],
+            "voice_connected": bool(self.voice_manager and self.voice_manager.is_connected()),
+            "events_per_min": self._events_per_minute(),
+            "vram_used_mb": _vram_used_mb(),
+            "llm_status": "online" if health["ollama"] else "offline",
+        }
+
+    def set_event_cooldown(self, seconds: float) -> None:
+        if self.coach_service:
+            self.coach_service.set_event_cooldown(seconds)
+
+    def set_gapo_cooldown(self, seconds: float) -> None:
+        if self.gapo_service:
+            self.gapo_service.set_cooldown(seconds)
+
+    def _events_per_minute(self) -> int:
+        agora = time.monotonic()
+        while self._event_times and agora - self._event_times[0] > 60.0:
+            self._event_times.popleft()
+        return len(self._event_times)
 
     async def run_capture_only(self) -> None:
         logger.info("Starting capture only mode...")
@@ -195,3 +272,22 @@ async def run_capture():
     else:
         click.echo("❌ Falha na inicializacao - rode `gapo doctor` para ver o que falta")
         raise SystemExit(1)
+
+
+def _vram_used_mb() -> float:
+    """VRAM em uso segundo o nvidia-smi; 0.0 quando nao ha GPU NVIDIA."""
+    try:
+        resultado = subprocess.run(
+            ["nvidia-smi", "--query-gpu=memory.used", "--format=csv,noheader,nounits"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return 0.0
+    if resultado.returncode != 0:
+        return 0.0
+    try:
+        return max(float(linha) for linha in resultado.stdout.split() if linha.strip())
+    except ValueError:
+        return 0.0

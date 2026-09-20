@@ -1,5 +1,6 @@
 import numpy as np
 
+from gapo.bootstrap.opus import register_opus_path
 from gapo.core.exceptions import TTSError
 
 
@@ -9,12 +10,13 @@ def _load_opuslib():
     Mantem OCR, calibracao, doctor e os testes rodando em maquinas sem o Opus
     instalado, em vez de quebrar no import do pacote.
     """
+    register_opus_path()
     try:
         import opuslib
     except Exception as e:
         raise TTSError(
             "Biblioteca nativa Opus nao encontrada - necessaria para audio no Discord. "
-            "Instale o Opus (Windows: DLL no PATH; Linux: libopus0) e tente de novo."
+            "Rode `gapo init` (Windows) ou instale a libopus0 do sistema (Linux)."
         ) from e
     return opuslib
 

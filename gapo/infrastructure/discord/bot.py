@@ -9,7 +9,7 @@ logger = get_logger("discord_bot")
 
 
 class DiscordBot(commands.Bot):
-    def __init__(self, token: str, application_id: int, **kwargs):
+    def __init__(self, token: str, application_id: int, guild_id: Optional[int] = None, **kwargs):
         intents = discord.Intents.default()
         intents.message_content = True
         intents.voice_states = True
@@ -22,14 +22,31 @@ class DiscordBot(commands.Bot):
             **kwargs
         )
         self.token = token
+        self.guild_id = guild_id
         self._voice_client: Optional[discord.VoiceClient] = None
         self._audio_queue: asyncio.Queue = asyncio.Queue()
         self._playing = False
 
     async def setup_hook(self):
+        """Sincroniza os slash commands.
+
+        Sync global leva ate uma hora para os comandos aparecerem no cliente.
+        Com DISCORD_GUILD_ID configurado, sincroniza direto no servidor, que e
+        instantaneo - e o caminho normal para uso proprio.
+        """
         logger.info("Setting up Discord bot...")
-        await self.tree.sync()
-        logger.info("Slash commands synced")
+        if self.guild_id:
+            guild = discord.Object(id=self.guild_id)
+            self.tree.copy_global_to(guild=guild)
+            comandos = await self.tree.sync(guild=guild)
+            logger.info(f"Slash commands synced to guild {self.guild_id}: {len(comandos)}")
+            return
+
+        comandos = await self.tree.sync()
+        logger.warning(
+            f"Slash commands synced globally ({len(comandos)}) - pode levar ate 1h para "
+            "aparecer. Configure DISCORD_GUILD_ID no .env para sync instantaneo."
+        )
 
     async def on_ready(self):
         logger.info(f"Logged in as {self.user} (ID: {self.user.id})")
@@ -94,6 +111,8 @@ class DiscordBot(commands.Bot):
         await super().close()
 
 
-async def create_bot(token: str, application_id: int) -> DiscordBot:
-    bot = DiscordBot(token, application_id)
+async def create_bot(
+    token: str, application_id: int, guild_id: Optional[int] = None
+) -> DiscordBot:
+    bot = DiscordBot(token, application_id, guild_id=guild_id)
     return bot

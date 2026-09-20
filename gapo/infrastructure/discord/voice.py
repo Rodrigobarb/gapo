@@ -1,8 +1,10 @@
-import discord
 import asyncio
+import io
 from typing import Optional
+
+import discord
+
 from gapo.core.logging import get_logger
-from gapo.utils.audio import _load_opuslib
 from gapo.models.audio import AudioChunk, AudioFormat
 
 logger = get_logger("discord_voice")
@@ -12,9 +14,6 @@ class DiscordVoiceManager:
     def __init__(self, bot: discord.Client):
         self.bot = bot
         self._voice_client: Optional[discord.VoiceClient] = None
-        opuslib = _load_opuslib()
-        self._encoder = opuslib.Encoder(48000, 1, opuslib.APPLICATION_AUDIO)
-        self._frame_size = 960
         self._playing = False
         self._queue: asyncio.Queue = asyncio.Queue()
 
@@ -51,34 +50,37 @@ class DiscordVoiceManager:
                 break
             try:
                 chunk = await self._queue.get()
-                if chunk.format != AudioFormat.OPUS:
-                    logger.warning("Only OPUS format supported for direct playback")
+                source = self._build_source(chunk)
+                if source is None:
                     continue
-                
-                if self._voice_client.is_playing():
+
+                # Espera a fala anterior terminar em vez de descartar esta.
+                while self._voice_client.is_playing():
                     await asyncio.sleep(0.01)
-                    continue
 
-                class OpusAudio(discord.AudioSource):
-                    def __init__(self, data: bytes):
-                        self.data = data
-                        self.pos = 0
-
-                    def read(self) -> bytes:
-                        chunk = self.data[self.pos:self.pos + 3840]
-                        self.pos += 3840
-                        return chunk if chunk else b""
-
-                    def is_opus(self) -> bool:
-                        return True
-
-                source = OpusAudio(chunk.data)
                 self._voice_client.play(source)
                 while self._voice_client.is_playing():
                     await asyncio.sleep(0.01)
             except Exception as e:
                 logger.error(f"Playback error: {e}")
         self._playing = False
+
+    def _build_source(self, chunk: AudioChunk) -> Optional[discord.AudioSource]:
+        """Converte o chunk do TTS no que o Discord aceita.
+
+        O Piper entrega WAV mono 22kHz e o Discord exige PCM 48kHz estereo, por
+        isso o ffmpeg (pre-requisito do projeto) faz a reamostragem.
+        """
+        if chunk.format is AudioFormat.OPUS:
+            return _OpusAudio(chunk.data)
+        if chunk.format is AudioFormat.WAV:
+            try:
+                return discord.FFmpegPCMAudio(io.BytesIO(chunk.data), pipe=True)
+            except Exception as e:
+                logger.error(f"ffmpeg indisponivel para tocar o TTS: {e}")
+                return None
+        logger.warning(f"Formato de audio nao suportado na voz: {chunk.format}")
+        return None
 
     async def stop_playback(self) -> None:
         if self._voice_client and self._voice_client.is_playing():
@@ -88,3 +90,21 @@ class DiscordVoiceManager:
                 self._queue.get_nowait()
             except asyncio.QueueEmpty:
                 break
+
+
+class _OpusAudio(discord.AudioSource):
+    """Chunk ja codificado em Opus: o Discord consome os frames direto."""
+
+    FRAME_BYTES = 3840  # 20ms @ 48kHz estereo 16-bit
+
+    def __init__(self, data: bytes):
+        self.data = data
+        self.pos = 0
+
+    def read(self) -> bytes:
+        frame = self.data[self.pos : self.pos + self.FRAME_BYTES]
+        self.pos += self.FRAME_BYTES
+        return frame
+
+    def is_opus(self) -> bool:
+        return True

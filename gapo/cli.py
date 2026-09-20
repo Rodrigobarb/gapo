@@ -54,7 +54,11 @@ def doctor(as_json: bool) -> None:
 @click.option("--skip-ollama", is_flag=True, help="Nao subir o Ollama nem baixar o LLM")
 @click.option("--skip-piper", is_flag=True, help="Nao baixar a voz do Piper")
 @click.option("--skip-yolo", is_flag=True, help="Nao exportar o YOLOv8n para ONNX")
-@click.option("--install-ollama", is_flag=True, help="Instalar o Ollama via winget (Windows)")
+@click.option(
+    "--install-system",
+    is_flag=True,
+    help="Instalar Ollama e FFmpeg via winget (Windows)",
+)
 @click.option("--dev", is_flag=True, help="Instalar tambem as dependencias de desenvolvimento")
 @click.option("--no-check", is_flag=True, help="Nao rodar o doctor no fim")
 def init(
@@ -62,7 +66,7 @@ def init(
     skip_ollama: bool,
     skip_piper: bool,
     skip_yolo: bool,
-    install_ollama: bool,
+    install_system: bool,
     dev: bool,
     no_check: bool,
 ) -> None:
@@ -89,7 +93,7 @@ def init(
         skip_ollama=skip_ollama,
         skip_piper=skip_piper,
         skip_yolo=skip_yolo,
-        install_ollama=install_ollama,
+        install_system=install_system,
         dev=dev,
     )
 

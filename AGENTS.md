@@ -33,9 +33,9 @@ gapo doctor                    # confere o que ficou faltando
 
 `gapo init` faz tudo sozinho e é idempotente: diretórios, `.env`,
 `config/config.yaml`, `pip install -e .`, sobe o Ollama, baixa o LLM (~4.2GB),
-a voz Piper (~63MB) e exporta o YOLOv8n ONNX. Flags: `--skip-deps`,
-`--skip-ollama`, `--skip-piper`, `--skip-yolo`, `--install-ollama` (winget),
-`--dev`, `--no-check`.
+a voz Piper (~63MB), resolve o `opus.dll` e exporta o YOLOv8n ONNX. Flags:
+`--skip-deps`, `--skip-ollama`, `--skip-piper`, `--skip-yolo`, `--dev`,
+`--no-check` e `--install-system` (instala Ollama e FFmpeg via winget).
 
 `gapo doctor` só verifica — nunca instala. Marca cada falha como "o init
 resolve" ou "precisa de você", e sai com código 1 se algo bloqueia o `gapo run`.
@@ -45,6 +45,8 @@ resolve" ou "precisa de você", e sai com código 1 se algo bloqueia o `gapo run
 |----------|-------------|--------|
 | `DISCORD_TOKEN` | Sim | — |
 | `DISCORD_APPLICATION_ID` | Sim | — |
+| `DISCORD_GUILD_ID` | Não, mas recomendado | — (sem ele o sync dos slash commands é global e leva até 1h) |
+| `DISCORD_VOICE_CHANNEL_ID` | Não | — (sem ele, entre na call com `/coach_start`) |
 | `GAPO_MODEL_LLM_NAME` | Não | `qwen2.5:7b-instruct-q4_K_M` |
 | `GAPO_MODEL_TTS_MODEL` | Não | `pt_BR-faber-medium` |
 | `GAPO_CAPTURE_FPS` | Não | `3` |
@@ -102,7 +104,8 @@ gapo/
 │   │   ├── requirements.py     # Fonte única: deps, modelos, arquivos exigidos
 │   │   ├── diagnostics.py      # CheckResult, DiagnosticsReport, StepResult
 │   │   ├── doctor.py           # DoctorService: 12 checks, nunca instala nada
-│   │   ├── installer.py        # SetupService: deps, Ollama, Piper, YOLO
+│   │   ├── installer.py        # SetupService: deps, Ollama, Piper, Opus, YOLO
+│   │   ├── opus.py             # Acha a libopus (reaproveita a DLL do discord.py)
 │   │   └── console.py          # Terminal (rich com fallback) + ProgressLine
 │   ├── config/
 │   │   └── settings.py         # Pydantic Settings (env + yaml), get_settings()

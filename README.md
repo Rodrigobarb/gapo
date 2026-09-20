@@ -33,10 +33,11 @@ O `init` é idempotente — o que já estiver no lugar é pulado — e faz:
 | Dependências Python | `pip install -e .` |
 | LLM | sobe o Ollama e baixa **Qwen2.5-7B-Instruct-Q4_K_M** (~4.2GB) |
 | TTS | voz Piper **pt_BR-faber-medium** (~63MB) |
+| Opus | `opus.dll` para a voz no Discord (reaproveita a que vem no discord.py) |
 | Visão | exporta **YOLOv8n ONNX** (~3MB, opcional) |
 
 Opções: `--skip-deps`, `--skip-ollama`, `--skip-piper`, `--skip-yolo`,
-`--install-ollama` (instala o Ollama via winget no Windows), `--dev`,
+`--install-system` (instala Ollama e FFmpeg via winget no Windows), `--dev`,
 `--no-check`.
 
 ### 3. Confira o ambiente

@@ -21,6 +21,7 @@ from pathlib import Path
 from gapo.bootstrap.console import Terminal
 from gapo.bootstrap.diagnostics import CheckStatus, SetupReport, StepResult
 from gapo.bootstrap.doctor import ollama_models, ollama_reachable
+from gapo.bootstrap.opus import ensure_opus_dll
 from gapo.bootstrap.requirements import (
     OLLAMA_HOST,
     PROJECT_ROOT,
@@ -33,6 +34,13 @@ from gapo.bootstrap.requirements import (
 ENV_TEMPLATE = """# Discord Bot Configuration
 DISCORD_TOKEN=seu_token_aqui
 DISCORD_APPLICATION_ID=seu_app_id_aqui
+
+# ID do servidor: faz os slash commands aparecerem na hora (sem isso o sync
+# global do Discord pode levar ate 1h).
+# DISCORD_GUILD_ID=
+
+# Canal de voz para o bot entrar sozinho ao subir (senao use /coach_start).
+# DISCORD_VOICE_CHANNEL_ID=
 
 # Opcional: sobrescreve os defaults
 # GAPO_MODEL_LLM_NAME=qwen2.5:7b-instruct-q4_K_M
@@ -199,7 +207,7 @@ class SetupService:
             return self._fail(
                 "Servidor Ollama",
                 "ollama nao instalado - baixe em https://ollama.com/download "
-                "ou rode `gapo init --install-ollama` (Windows/winget)",
+                "ou rode `gapo init --install-system` (Windows/winget)",
             )
 
         self.term.print("   subindo `ollama serve` em background...", style="dim")
@@ -259,6 +267,34 @@ class SetupService:
                 return self._fail("Voz Piper (TTS)", erro)
         return self._ok("Voz Piper (TTS)", f"{self.tts_voice} em {onnx.parent}")
 
+    def ensure_ffmpeg(self, install: bool = False) -> StepResult:
+        """Sem ffmpeg o TTS sintetiza mas nao sai som nenhum no Discord."""
+        if shutil.which("ffmpeg"):
+            return self._ok("FFmpeg", "ja no PATH")
+
+        if not install:
+            return self._warn(
+                "FFmpeg",
+                "ausente - rode com --install-system (winget) ou baixe em ffmpeg.org",
+            )
+
+        code, detalhe = self._winget_install("Gyan.FFmpeg")
+        if code != 0:
+            return self._warn("FFmpeg", f"{detalhe} - baixe em https://ffmpeg.org/download.html")
+        if not shutil.which("ffmpeg"):
+            return self._warn(
+                "FFmpeg",
+                "instalado, mas ainda fora do PATH desta sessao - abra um terminal novo",
+            )
+        return self._ok("FFmpeg", "instalado via winget")
+
+    def ensure_opus_support(self) -> StepResult:
+        """Deixa a libopus achavel pelo opuslib (voz no Discord)."""
+        resolvido, mensagem = ensure_opus_dll()
+        if resolvido:
+            return self._ok("Opus (voz Discord)", mensagem)
+        return self._warn("Opus (voz Discord)", mensagem)
+
     def export_yolo_model(self) -> StepResult:
         """Exporta o yolov8n para ONNX via ultralytics (opcional: OCR roda sem)."""
         destino = self.cwd / self.yolo_model
@@ -291,7 +327,7 @@ class SetupService:
         skip_ollama: bool = False,
         skip_piper: bool = False,
         skip_yolo: bool = False,
-        install_ollama: bool = False,
+        install_system: bool = False,
         dev: bool = False,
     ) -> SetupReport:
         report = SetupReport()
@@ -312,14 +348,16 @@ class SetupService:
             report.add(self._skip("Servidor Ollama"))
             report.add(self._skip("Modelo LLM"))
         else:
-            servidor = report.add(self.ensure_ollama(install=install_ollama))
+            servidor = report.add(self.ensure_ollama(install=install_system))
             if servidor.ok:
                 report.add(self.pull_llm_model())
             else:
                 report.add(self._skip("Modelo LLM", "servidor indisponivel"))
 
-        self.term.section("4/4 Modelos de voz e visao")
+        self.term.section("4/4 Voz e visao")
         report.add(self._skip("Voz Piper (TTS)") if skip_piper else self.download_piper_voice())
+        report.add(self.ensure_ffmpeg(install=install_system))
+        report.add(self.ensure_opus_support())
         report.add(self._skip("Modelo YOLO") if skip_yolo else self.export_yolo_model())
 
         return report
@@ -327,19 +365,26 @@ class SetupService:
     # -- infraestrutura interna ---------------------------------------------------
 
     def _install_ollama(self) -> StepResult:
-        if sys.platform != "win32" or not shutil.which("winget"):
+        code, detalhe = self._winget_install("Ollama.Ollama")
+        if code != 0:
             return self._fail(
                 "Servidor Ollama",
-                "instalacao automatica so via winget (Windows) - "
-                "baixe em https://ollama.com/download",
+                f"{detalhe} - baixe em https://ollama.com/download",
             )
-        self.term.print("   winget install Ollama.Ollama ...", style="dim")
+        return self._ok("Servidor Ollama", "instalado via winget")
+
+    def _winget_install(self, package_id: str) -> tuple[int, str]:
+        """Instala um pacote do sistema via winget. Devolve (codigo, detalhe)."""
+        if sys.platform != "win32" or not shutil.which("winget"):
+            return 1, "instalacao automatica so via winget (Windows)"
+
+        self.term.print(f"   winget install {package_id} ...", style="dim")
         code, tail = self._stream(
             [
                 "winget",
                 "install",
                 "--id",
-                "Ollama.Ollama",
+                package_id,
                 "-e",
                 "--accept-source-agreements",
                 "--accept-package-agreements",
@@ -349,8 +394,8 @@ class SetupService:
             timeout=1800,
         )
         if code != 0:
-            return self._fail("Servidor Ollama", f"winget falhou (codigo {code}): {tail}")
-        return self._ok("Servidor Ollama", "instalado via winget")
+            return code, f"winget falhou (codigo {code}): {tail}"
+        return 0, "instalado via winget"
 
     def _wait_for_ollama(self, timeout: float = 30.0) -> bool:
         limite = time.monotonic() + timeout

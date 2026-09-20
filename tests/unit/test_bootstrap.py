@@ -14,6 +14,7 @@ from gapo.bootstrap.doctor import (
     _model_present,
     ollama_models,
 )
+from gapo.bootstrap.opus import ensure_opus_dll, opus_available, opus_dll_dir
 from gapo.bootstrap.requirements import PY_PACKAGES, piper_voice_paths, piper_voice_urls
 
 
@@ -116,6 +117,21 @@ class TestRequirements:
     def test_nao_ha_modulo_duplicado(self):
         modulos = [p.module for p in PY_PACKAGES]
         assert len(modulos) == len(set(modulos))
+
+
+class TestOpus:
+    def test_diretorio_da_dll_e_o_do_interpretador(self):
+        assert opus_dll_dir() == Path(sys.executable).parent
+
+    def test_ensure_e_idempotente(self):
+        primeiro = ensure_opus_dll()
+        assert ensure_opus_dll() == (primeiro[0], "opus.dll ja acessivel") or not primeiro[0]
+
+    @pytest.mark.skipif(sys.platform != "win32", reason="so o Windows precisa da copia")
+    def test_quando_resolve_o_ctypes_acha(self):
+        resolvido, _ = ensure_opus_dll()
+        if resolvido:
+            assert opus_available()
 
 
 class TestImportsLeves:

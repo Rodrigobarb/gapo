@@ -51,8 +51,10 @@ class DiscordConfig(BaseSettings):
     application_id: Optional[int] = Field(
         default=None, validation_alias="DISCORD_APPLICATION_ID"
     )
-    voice_channel_id: Optional[int] = None
-    guild_id: Optional[int] = None
+    voice_channel_id: Optional[int] = Field(
+        default=None, validation_alias="DISCORD_VOICE_CHANNEL_ID"
+    )
+    guild_id: Optional[int] = Field(default=None, validation_alias="DISCORD_GUILD_ID")
     command_prefix: str = "Gapo"
 
     model_config = _settings_config("GAPO_DISCORD_")

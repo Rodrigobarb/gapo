@@ -15,6 +15,7 @@ from gapo.bootstrap.diagnostics import (
 )
 from gapo.bootstrap.doctor import DoctorService, resolve_model_names
 from gapo.bootstrap.installer import SetupService
+from gapo.bootstrap.opus import ensure_opus_dll, register_opus_path
 
 __all__ = [
     "CheckResult",
@@ -24,5 +25,7 @@ __all__ = [
     "SetupReport",
     "SetupService",
     "StepResult",
+    "ensure_opus_dll",
+    "register_opus_path",
     "resolve_model_names",
 ]

@@ -20,6 +20,7 @@ import urllib.request
 from pathlib import Path
 
 from gapo.bootstrap.diagnostics import CheckResult, CheckStatus, DiagnosticsReport
+from gapo.bootstrap.opus import register_opus_path
 from gapo.bootstrap.requirements import (
     OLLAMA_HOST,
     PROJECT_ROOT,
@@ -68,6 +69,7 @@ class DoctorService:
             self.check_llm_model,
             self.check_piper_voice,
             self.check_yolo_model,
+            self.check_ffmpeg,
             self.check_opus,
         ):
             try:
@@ -240,7 +242,7 @@ class DoctorService:
             "Servidor Ollama",
             CheckStatus.FAIL,
             "ollama nao instalado",
-            hint="baixe em https://ollama.com/download (ou: gapo init --install-ollama)",
+            hint="baixe em https://ollama.com/download (ou: gapo init --install-system)",
         )
 
     def check_llm_model(self) -> CheckResult:
@@ -293,6 +295,21 @@ class DoctorService:
             fixable_by_init=True,
         )
 
+    def check_ffmpeg(self) -> CheckResult:
+        """O Piper entrega WAV 22kHz mono; quem reamostra para o Discord e o ffmpeg."""
+        binario = shutil.which("ffmpeg")
+        if not binario:
+            return CheckResult(
+                "FFmpeg",
+                CheckStatus.FAIL,
+                "nao encontrado - o TTS nao toca no canal de voz sem ele",
+                hint=f"{INIT_HINT} --install-system (winget) ou baixe em ffmpeg.org",
+                fixable_by_init=sys.platform == "win32",
+            )
+        ok, out = _run([binario, "-version"])
+        versao = out.splitlines()[0] if ok and out else binario
+        return CheckResult("FFmpeg", CheckStatus.OK, versao[:70])
+
     def check_opus(self) -> CheckResult:
         """opuslib importa mesmo sem a lib nativa do Opus; so o encoder revela."""
         if not _module_available("opuslib"):
@@ -303,16 +320,26 @@ class DoctorService:
                 hint=INIT_HINT,
                 fixable_by_init=True,
             )
+
+        register_opus_path()
         try:
             import opuslib
 
             opuslib.Encoder(48000, 1, opuslib.APPLICATION_AUDIO)
         except Exception as e:
+            if sys.platform == "win32":
+                return CheckResult(
+                    "Opus (voz Discord)",
+                    CheckStatus.WARN,
+                    f"opus.dll nao encontrada: {str(e)[:60]}",
+                    hint=f"{INIT_HINT} (copia a libopus que vem no discord.py)",
+                    fixable_by_init=True,
+                )
             return CheckResult(
                 "Opus (voz Discord)",
                 CheckStatus.WARN,
                 f"lib nativa indisponivel: {str(e)[:80]}",
-                hint="Windows: opus.dll no PATH | Linux: apt install libopus0",
+                hint="Debian/Ubuntu: apt install libopus0 | macOS: brew install opus",
             )
         return CheckResult("Opus (voz Discord)", CheckStatus.OK, "encoder Opus funcionando")
 
