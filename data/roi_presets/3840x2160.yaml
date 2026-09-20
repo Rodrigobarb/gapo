@@ -1,0 +1,83 @@
+# ROIs padrao para 3840x2160 - gerado de gapo/models/ocr.py:DEFAULT_ROI_PRESETS
+# Ajuste com: gapo calibrate --width 3840 --height 2160
+
+hud_hp:
+  name: "hud_hp"
+  x: 30
+  y: 30
+  width: 360
+  height: 70
+  scale: 1.0
+  preprocess: "default"
+
+hud_mana:
+  name: "hud_mana"
+  x: 30
+  y: 100
+  width: 360
+  height: 50
+  scale: 1.0
+  preprocess: "default"
+
+hud_level:
+  name: "hud_level"
+  x: 30
+  y: 155
+  width: 120
+  height: 70
+  scale: 1.0
+  preprocess: "default"
+
+hud_gold:
+  name: "hud_gold"
+  x: 30
+  y: 230
+  width: 200
+  height: 60
+  scale: 1.0
+  preprocess: "default"
+
+hud_cs:
+  name: "hud_cs"
+  x: 30
+  y: 290
+  width: 150
+  height: 60
+  scale: 1.0
+  preprocess: "default"
+
+hud_items:
+  name: "hud_items"
+  x: 195
+  y: 2040
+  width: 960
+  height: 120
+  scale: 1.0
+  preprocess: "default"
+
+hud_spells:
+  name: "hud_spells"
+  x: 1200
+  y: 2040
+  width: 240
+  height: 120
+  scale: 1.0
+  preprocess: "default"
+
+minimap:
+  name: "minimap"
+  x: 3210
+  y: 30
+  width: 600
+  height: 600
+  scale: 1.0
+  preprocess: "default"
+
+chat:
+  name: "chat"
+  x: 30
+  y: 1400
+  width: 800
+  height: 600
+  scale: 1.0
+  preprocess: "default"

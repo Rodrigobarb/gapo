@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: gapo-ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  gapo:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: gapo-bot
+    restart: unless-stopped
+    depends_on:
+      - ollama
+    environment:
+      - DISCORD_TOKEN=${DISCORD_TOKEN}
+      - DISCORD_APPLICATION_ID=${DISCORD_APPLICATION_ID}
+      - GAPO_DISCORD_TOKEN=${DISCORD_TOKEN}
+      - GAPO_DISCORD_APPLICATION_ID=${DISCORD_APPLICATION_ID}
+      - GAPO_MODEL_LLM_NAME=qwen2.5:7b-instruct-q4_K_M
+      - GAPO_MODEL_TTS_MODEL=pt_BR-faber-medium
+      - GAPO_CAPTURE_FPS=3
+      - GAPO_LOG_LEVEL=INFO
+      - GAPO_COACH_EVENT_COOLDOWN_SECONDS=5
+      - GAPO_COACH_GAPO_COOLDOWN_SECONDS=10
+    volumes:
+      - ./data:/app/data
+      - ./config:/app/config
+      - ./logs:/app/logs
+      - piper_models:/home/gapo/.local/share/piper
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    # For screen capture on Linux with X11
+    # devices:
+    #   - /dev/dri:/dev/dri
+    # environment:
+    #   - DISPLAY=${DISPLAY}
+    #   - XAUTHORITY=${XAUTHORITY}
+    # volumes:
+    #   - /tmp/.X11-unix:/tmp/.X11-unix:ro
+
+volumes:
+  ollama_data:
+  piper_models:

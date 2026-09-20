@@ -1,0 +1,9 @@
+{
+  "_comment": "Seed. Chave: champion lowercase -> lista de champions que o counteram. Lido por ChampionRepository.get_counters(); KnowledgeService usa os 5 primeiros.",
+  "malphite": ["Darius", "Fiora", "Gwen", "Quinn", "Camille"],
+  "zed": ["Malphite", "Lissandra", "Kayle", "Galio", "Diana"],
+  "yasuo": ["Annie", "Malphite", "Pantheon", "Renekton", "Rammus"],
+  "jinx": ["Caitlyn", "Draven", "Nautilus", "Blitzcrank", "Leona"],
+  "ahri": ["Kassadin", "Fizz", "Talon", "Yasuo", "Zed"],
+  "lee sin": ["Nunu", "Jarvan IV", "Xin Zhao", "Warwick", "Rammus"]
+}

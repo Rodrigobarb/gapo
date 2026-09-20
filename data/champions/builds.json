@@ -1,0 +1,48 @@
+{
+  "_comment": "Seed. Chave: champion lowercase -> dict livre com a build. Lido por ChampionRepository.get_build() e repassado inteiro ao contexto do LLM por KnowledgeService.",
+  "zed": {
+    "role": "mid",
+    "starting_items": ["Long Sword", "Refillable Potion"],
+    "core": ["Eclipse", "Youmuu's Ghostblade", "Edge of Night"],
+    "situational": ["Serylda's Grudge", "Death's Dance", "Guardian Angel"],
+    "boots": "Ionian Boots of Lucidity",
+    "keystone": "Electrocute",
+    "summoners": ["Flash", "Ignite"]
+  },
+  "ahri": {
+    "role": "mid",
+    "starting_items": ["Doran's Ring", "Health Potion"],
+    "core": ["Luden's Companion", "Shadowflame", "Rabadon's Deathcap"],
+    "situational": ["Zhonya's Hourglass", "Void Staff", "Banshee's Veil"],
+    "boots": "Sorcerer's Shoes",
+    "keystone": "Electrocute",
+    "summoners": ["Flash", "Teleport"]
+  },
+  "jinx": {
+    "role": "adc",
+    "starting_items": ["Doran's Blade", "Health Potion"],
+    "core": ["Kraken Slayer", "Infinity Edge", "Lord Dominik's Regards"],
+    "situational": ["Bloodthirster", "Guardian Angel", "Mercurial Scimitar"],
+    "boots": "Berserker's Greaves",
+    "keystone": "Lethal Tempo",
+    "summoners": ["Flash", "Heal"]
+  },
+  "malphite": {
+    "role": "top",
+    "starting_items": ["Doran's Shield", "Health Potion"],
+    "core": ["Sunfire Aegis", "Thornmail", "Frozen Heart"],
+    "situational": ["Force of Nature", "Randuin's Omen", "Abyssal Mask"],
+    "boots": "Plated Steelcaps",
+    "keystone": "Grasp of the Undying",
+    "summoners": ["Flash", "Teleport"]
+  },
+  "lee sin": {
+    "role": "jungle",
+    "starting_items": ["Emberknife", "Refillable Potion"],
+    "core": ["Eclipse", "Black Cleaver", "Death's Dance"],
+    "situational": ["Guardian Angel", "Maw of Malmortius", "Sterak's Gage"],
+    "boots": "Ionian Boots of Lucidity",
+    "keystone": "Conqueror",
+    "summoners": ["Flash", "Smite"]
+  }
+}

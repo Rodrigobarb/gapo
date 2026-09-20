@@ -1,0 +1,23 @@
+{
+  "_comment": "Seed. Chave: '<meu_champ>_vs_<champ_inimigo>' (lowercase), opcionalmente prefixada por role: '<role>_<meu>_vs_<inimigo>'. Lido por ChampionRepository.get_matchup(); o campo 'advice' e o que KnowledgeService.get_matchup_advice() retorna.",
+  "zed_vs_malphite": {
+    "difficulty": "hard",
+    "advice": "Malphite counteria Zed depois do primeiro item de armadura. Force trocas antes do level 6 e roame para outras lanes ao inves de insistir no 1v1.",
+    "power_window": "levels 1-5"
+  },
+  "darius_vs_malphite": {
+    "difficulty": "easy",
+    "advice": "Darius vence early forte. Puxe trocas longas com Q no limite do cabo e sangre ate 5 stacks antes do primeiro item dele.",
+    "power_window": "levels 1-6"
+  },
+  "ahri_vs_syndra": {
+    "difficulty": "even",
+    "advice": "Matchup decidido por acerto de skillshot. Segure Charm para punir o E dela; apos o 6 voce tem all-in melhor se ela gastar o E.",
+    "power_window": "level 6+"
+  },
+  "jinx_vs_caitlyn": {
+    "difficulty": "hard",
+    "advice": "Caitlyn vence o early por alcance. Farme sob torre, espere o powerspike de Infinity Edge e jogue em volta de teamfight, nao de trade 2v2.",
+    "power_window": "2 itens+"
+  }
+}

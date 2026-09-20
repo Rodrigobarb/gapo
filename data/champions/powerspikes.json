@@ -1,0 +1,19 @@
+{
+  "_comment": "Seed. Chave: champion lowercase -> lista de dicts. Lido por ChampionRepository.get_powerspikes(); KnowledgeService usa os 5 primeiros.",
+  "zed": [
+    {"trigger": "level_6", "strength": "high", "note": "Ultimate destrava all-in em alvos squishy."},
+    {"trigger": "item_1", "item": "Eclipse", "strength": "high", "note": "Primeiro item completo permite one-shot em ADC."}
+  ],
+  "ahri": [
+    {"trigger": "level_6", "strength": "high", "note": "Charm + R da mobilidade e kill pressure."},
+    {"trigger": "item_1", "item": "Luden's Companion", "strength": "medium", "note": "Wave clear e burst de poke."}
+  ],
+  "jinx": [
+    {"trigger": "item_2", "item": "Infinity Edge", "strength": "high", "note": "Primeiro grande spike de dano."},
+    {"trigger": "level_16", "strength": "medium", "note": "Ultimate em cooldown baixo para sniping."}
+  ],
+  "malphite": [
+    {"trigger": "level_6", "strength": "high", "note": "Ultimate vira teamfights sozinho."},
+    {"trigger": "item_1", "item": "Sunfire Aegis", "strength": "medium", "note": "Torna trocas prolongadas favoraveis."}
+  ]
+}

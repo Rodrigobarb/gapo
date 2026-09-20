@@ -1,0 +1,79 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gapo"
+version = "0.1.0"
+description = "LoL Coach Discord Bot with Real-time OCR + Local LLM + TTS"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.11"
+dependencies = [
+    "dxcam>=0.1.0",
+    "mss>=9.0.0",
+    "numpy>=1.26",
+    "opencv-python>=4.9",
+    "paddleocr>=2.8",
+    "onnxruntime-gpu>=1.18",
+    "ultralytics>=8.2",
+    "ollama>=0.3",
+    "piper-tts>=1.2",
+    "discord.py>=2.4",
+    "opuslib>=3.0",
+    "pydantic>=2.6",
+    "pydantic-settings>=2.2",
+    "pyyaml>=6.0",
+    "loguru>=0.7",
+    "prometheus-client>=0.19",
+    "tenacity>=8.2",
+    "click>=8.1",
+    "rich>=13.0",
+    "pillow>=10.0",
+    "PyNaCl>=1.5",
+    "av>=10.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "pytest-cov>=4.1",
+    "ruff>=0.3",
+    "mypy>=1.8",
+    "pre-commit>=3.6",
+]
+xtts = ["coqui-tts>=0.17"]
+
+[project.scripts]
+gapo = "gapo.cli:cli"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["gapo*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "SIM", "T20"]
+ignore = ["S101", "B008"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+check_untyped_defs = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+markers = [
+    "integration: testes que exigem servicos externos (Ollama, captura de tela, Discord)",
+]
